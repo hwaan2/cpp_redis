@@ -33,6 +33,12 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 ###
 # set(CMAKE_VERBOSE_MAKEFILE TRUE)
 
+include("cmake/HunterGate.cmake")
+HunterGate(
+    URL "https://github.com/hwaan2/hunter/archive/v0.23.64.tar.gz"
+    SHA1 "a5f3c4999e03173d28b8469c4da4545dea740a41"
+    LOCAL
+)
 
 ###
 # project
@@ -76,8 +82,8 @@ endif(WIN32)
 ###
 # variables
 ###
-find_path(TACOPIE_INCLUDE_DIR tacopie/tacopie PATHS ${PROJECT_SOURCE_DIR}/tacopie/includes/)
-find_library(TACOPIE_LIBRARY tacopie)
+#find_path(TACOPIE_INCLUDE_DIR tacopie/tacopie PATHS ${PROJECT_SOURCE_DIR}/tacopie/includes/)
+#find_library(TACOPIE_LIBRARY tacopie)
 set(CPP_REDIS_INCLUDES ${PROJECT_SOURCE_DIR}/includes)
 set(DEPS_INCLUDES ${PROJECT_SOURCE_DIR}/deps/include ${TACOPIE_INCLUDE_DIR})
 set(DEPS_LIBRARIES ${PROJECT_SOURCE_DIR}/deps/lib)
@@ -151,12 +157,14 @@ else()
   target_link_libraries(${PROJECT} pthread)
 endif(WIN32)
 
-if(TACOPIE_LIBRARY)
-  target_link_libraries(${PROJECT} ${TACOPIE_LIBRARY})
-else()
-  target_link_libraries(${PROJECT} tacopie)
-endif(TACOPIE_LIBRARY)
-
+###
+# tacopie
+###
+IF (NOT USE_CUSTOM_TCP_CLIENT)
+  hunter_add_package(tacopie)
+  find_package(tacopie)
+  target_link_libraries(${PROJECT} tacopie::tacopie)
+ENDIF (NOT USE_CUSTOM_TCP_CLIENT)
 
 # __CPP_REDIS_READ_SIZE
 if(READ_SIZE)
@@ -212,6 +220,40 @@ endif(BUILD_TESTS)
 ###
 # tacopie
 ###
-if(NOT TACOPIE_LIBRARY AND NOT USE_CUSTOM_TCP_CLIENT)
-  add_subdirectory(tacopie)
-endif(NOT TACOPIE_LIBRARY AND NOT USE_CUSTOM_TCP_CLIENT)
+set(config_install_dir "lib/cmake/${PROJECT_NAME}")
+set(include_install_dir "include")
+set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
+# Configuration
+set(version_config "${generated_dir}/${PROJECT_NAME}ConfigVersion.cmake")
+set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
+set(targets_export_name "${PROJECT_NAME}Targets")
+set(namespace "${PROJECT_NAME}::")
+# Include module with fuction 'write_basic_package_version_file'
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    "cmake/Config.cmake.in"
+    "${project_config}"
+    INSTALL_DESTINATION "${config_install_dir}"
+)
+install(
+    TARGETS cpp_redis
+    EXPORT "${targets_export_name}"
+    LIBRARY DESTINATION "lib"
+    ARCHIVE DESTINATION "lib"
+    RUNTIME DESTINATION "bin"
+    INCLUDES DESTINATION "${include_install_dir}"
+)
+install(
+    DIRECTORY "includes/cpp_redis"
+    DESTINATION "${include_install_dir}"
+    FILES_MATCHING PATTERN "*.hpp"
+)
+install(
+    FILES "${project_config}"
+    DESTINATION "${config_install_dir}"
+)
+install(
+    EXPORT "${targets_export_name}"
+    NAMESPACE "${namespace}"
+    DESTINATION "${config_install_dir}"
+)
